@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Conteo Inventario — Moras</title>
+<style>
+  :root{
+    --bg:#14171a; --panel:#1c2024; --panel-2:#22262b; --line:#343b42;
+    --ink:#ffffff; --ink-dim:#b7bfc6; --amber:#e8a33d; --amber-dim:#8a6326;
+    --green:#5fb87a; --red:#e07a70;
+    font-family:'IBM Plex Sans','Segoe UI',Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0;padding:0;width:100%;height:100%;
+    background:var(--bg);color:var(--ink);font-size:15px;
+    overscroll-behavior:none;
+  }
+  #app{
+    display:flex;flex-direction:column;
+    min-height:100vh;min-height:100dvh;
+    padding:env(safe-area-inset-top,12px) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0);
+  }
+
+  /* ── HEADER ── */
+  .header{
+    background:#1a1e22;border-bottom:1px solid var(--line);
+    padding:12px 16px 10px;flex-shrink:0;
+  }
+  .header-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .tag{
+    display:inline-block;background:var(--amber);color:#211a0d;font-weight:700;
+    font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+    padding:3px 8px;border-radius:4px;
+  }
+  .header h1{font-size:17px;margin:2px 0 0;font-weight:700;}
+  .header-meta{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .metabox{display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px;}
+  .metabox label{font-size:10px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.06em;}
+  .metabox select,.metabox input{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+    padding:10px 12px;border-radius:10px;font-size:15px;font-family:inherit;
+    width:100%;-webkit-appearance:none;appearance:none;
+  }
+  .badge-count{
+    background:var(--amber);color:#211a0d;font-weight:700;font-size:12px;
+    padding:4px 10px;border-radius:20px;white-space:nowrap;
+  }
+
+  /* ── FORM AGREGAR ── */
+  .add-panel{
+    background:var(--panel);border-bottom:1px solid var(--line);
+    padding:12px 16px;flex-shrink:0;
+  }
+  .add-panel h2{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-dim);margin:0 0 10px;}
+  .field{display:flex;flex-direction:column;gap:5px;position:relative;}
+  .field label{font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.05em;}
+  .field input{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+    padding:12px 14px;border-radius:10px;font-size:16px;width:100%;font-family:inherit;
+    -webkit-appearance:none;appearance:none;
+  }
+  .field input:focus{outline:none;border-color:var(--amber);}
+  .field input[readonly]{color:var(--ink-dim);background:#191c1f;}
+  .field input.bad{border-color:var(--red);}
+
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+  .row-full{margin-top:8px;}
+
+  #suggest{
+    position:absolute;top:100%;left:0;right:0;z-index:50;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:10px;
+    max-height:200px;overflow-y:auto;margin-top:4px;
+    box-shadow:0 8px 32px rgba(0,0,0,.6);display:none;
+  }
+  #suggest div{
+    padding:12px 14px;cursor:pointer;font-size:14px;
+    border-bottom:1px solid var(--line);color:var(--ink);
+  }
+  #suggest div:last-child{border-bottom:none;}
+  #suggest div:active,#suggest div.active{background:var(--amber-dim);}
+  #suggest .s-code{font-weight:700;color:var(--amber);margin-right:8px;}
+  #suggest .s-umb{color:var(--ink-dim);font-size:11px;float:right;}
+
+  /* ── BOTONES ── */
+  .btn{
+    border:none;border-radius:10px;padding:13px 18px;font-size:15px;font-weight:700;
+    cursor:pointer;font-family:inherit;letter-spacing:.02em;
+    transition:transform .08s ease,opacity .08s ease;
+    -webkit-appearance:none;touch-action:manipulation;
+  }
+  .btn:active{transform:scale(0.95);opacity:.85;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn-amber{background:var(--amber);color:#211a0d;}
+  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--ink);}
+  .btn-green{background:var(--green);color:#0e2016;}
+  .btn-red{background:transparent;color:var(--red);border:1px solid var(--red);padding:10px 14px;font-size:13px;}
+  .btn-full{width:100%;text-align:center;}
+  .btn-big{padding:15px 18px;font-size:16px;}
+
+  /* ── LISTA ── */
+  .list-panel{flex:1;overflow-y:auto;padding:0 0 120px;}
+  .list-header{
+    position:sticky;top:0;z-index:10;
+    background:#1a1e22;border-bottom:1px solid var(--line);
+    padding:8px 16px;
+    display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;align-items:center;
+  }
+  .list-header span{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-dim);}
+  .list-header span.th-r{text-align:right;}
+
+  .item{
+    padding:12px 16px;border-bottom:1px solid var(--line);
+    display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;
+  }
+  .item.is-recount{background:rgba(232,163,61,0.07);}
+  .item.is-recount .item-code{box-shadow:inset 3px 0 0 var(--amber);}
+  .item-code{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--amber);font-weight:700;padding-left:4px;}
+  .item-name{font-size:13px;color:var(--ink);line-height:1.3;}
+  .item-umb{font-size:11px;color:var(--ink-dim);margin-top:2px;}
+  .item-nums{text-align:right;font-size:13px;line-height:1.6;}
+  .item-nums b{color:var(--amber);}
+  .item-actions{display:flex;flex-direction:column;gap:6px;align-items:center;}
+  .recount-check{width:22px;height:22px;cursor:pointer;accent-color:var(--amber);}
+
+  .empty-state{
+    padding:48px 24px;text-align:center;
+    color:var(--ink-dim);font-size:14px;line-height:1.6;
+  }
+  .empty-state .icon{font-size:40px;margin-bottom:12px;}
+
+  /* ── FOOTER FIJO ── */
+  .footer{
+    position:fixed;bottom:0;left:0;right:0;z-index:20;
+    background:#1a1e22;border-top:1px solid var(--line);
+    padding:10px 16px calc(10px + env(safe-area-inset-bottom));
+  }
+  .footer-totals{font-size:12px;color:var(--ink-dim);margin-bottom:8px;text-align:center;}
+  .footer-totals b{color:var(--ink);}
+  .footer-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+
+  /* ── TOAST ── */
+  .toast{
+    position:fixed;bottom:100px;left:50%;transform:translateX(-50%);
+    background:var(--green);color:#0e2016;padding:10px 20px;border-radius:10px;
+    font-weight:700;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.4);
+    opacity:0;pointer-events:none;transition:opacity .2s,bottom .2s;z-index:100;
+    white-space:nowrap;
+  }
+  .toast.show{opacity:1;bottom:108px;}
+  .toast.error{background:var(--red);color:#fff;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <div class="tag">Producto Terminado</div>
+        <h1>Conteo de Inventario</h1>
+      </div>
+      <div class="badge-count" id="badge">0 items</div>
+    </div>
+    <div class="header-meta">
+      <div class="metabox">
+        <label for="usuario">Usuario</label>
+        <select id="usuario">
+          <option value="">Selecciona...</option>
+          <option>Alejandro Verdes</option><option>Antonio Corral</option>
+          <option>Antonio Fernandez</option><option>Carlos Horacio</option>
+          <option>Damian Duran</option><option>David Liñares</option>
+          <option>Douglas Rios</option><option>Edgar Verde</option>
+          <option>Emilio Patino</option><option>Francisco Gutierrez</option>
+          <option>Jorge Silva</option><option>Jorge Rodriguez</option>
+          <option>Jose Cortes</option><option>Marcos Bugallo</option>
+          <option>Juan Naveira</option><option>Maria Loreto</option>
+          <option>Martin Blanco</option><option>Oscar Lopez</option>
+          <option>Oscar Sobrido</option><option>Pablo Cortizas</option>
+          <option>Pablo Sanchez</option><option>Roberto Prada</option>
+        </select>
+      </div>
+      <div class="metabox">
+        <label for="fecha">Fecha</label>
+        <input type="date" id="fecha">
+      </div>
+    </div>
+  </div>
+
+  <!-- FORM AGREGAR -->
+  <div class="add-panel">
+    <h2>Agregar producto</h2>
+    <div class="field" style="position:relative">
+      <label>Código o nombre</label>
+      <input type="text" id="in-codigo" class="mono" placeholder="Ej. 700002 o EG BARRIL..." autocomplete="off" autocorrect="off" spellcheck="false">
+      <div id="suggest"></div>
+    </div>
+    <div class="field row-full" style="margin-top:8px">
+      <input type="text" id="in-nombre" readonly placeholder="Nombre del producto —">
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>Pallets</label>
+        <input type="number" id="in-pallets" min="0" step="1" placeholder="0" inputmode="numeric" pattern="[0-9]*">
+      </div>
+      <div class="field">
+        <label>Cajas / Barriles</label>
+        <input type="number" id="in-cajas" min="0" step="1" placeholder="0" inputmode="numeric" pattern="[0-9]*">
+      </div>
+    </div>
+    <div class="row-full" style="margin-top:10px">
+      <button class="btn btn-amber btn-full btn-big" id="btn-add">+ Agregar al conteo</button>
+    </div>
+  </div>
+
+  <!-- LISTA -->
+  <div class="list-panel" id="list-panel">
+    <div class="empty-state" id="empty-state">
+      <div class="icon">📦</div>
+      Busca un producto por código o nombre<br>y agrégalo al conteo
+    </div>
+    <div id="list-items"></div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="footer-totals" id="footer-totals">0 productos · 0 pallets · 0 cajas</div>
+    <div class="footer-btns">
+      <button class="btn btn-ghost" id="btn-clear">🗑 Vaciar</button>
+      <button class="btn btn-green" id="btn-export">📤 Exportar Excel</button>
+    </div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+
+(function(){
+  const MATERIALES = [{"codigo": "700002", "nombre": "EG 0.0 BARRIL 30L", "umb": "BRL"}, {"codigo": "700004", "nombre": "EG 0.0 BARRIL 20L", "umb": "BRL"}, {"codigo": "700005", "nombre": "EG 0.0 TOSTADA BARRIL 20L", "umb": "BRL"}, {"codigo": "700006", "nombre": "EG 0.0 NR 4X6 25CL URUGUAY", "umb": "CJ"}, {"codigo": "700007", "nombre": "EG 0.0 TOSTADA KEG 3L", "umb": "BRL"}, {"codigo": "700008", "nombre": "EG 0.0 NR 2X12 33CL BOX EXP Q", "umb": "BOX"}, {"codigo": "700010", "nombre": "EG 0.0 R 24B 33CL", "umb": "CJ"}, {"codigo": "700014", "nombre": "EG 0.0 TOSTADA NR 1X24 33CL EXPORT", "umb": "CJ"}, {"codigo": "700015", "nombre": "EG 0.0 R 30B 20CL", "umb": "CJ"}, {"codigo": "700016", "nombre": "EG 0.0 TOSTADA R 30B 20CL LN", "umb": "CJ"}, {"codigo": "700017", "nombre": "EG 0.0 TOSTADA S GLUTEN SLK NMP 4X6 33CL", "umb": "CJ"}, {"codigo": "700018", "nombre": "EG 0.0 NR 4X6 25CL EXP MCLAREN", "umb": "CJ"}, {"codigo": "700019", "nombre": "EG 0.0 NR 4X6 25CL CHINA MCLAREN", "umb": "CJ"}, {"codigo": "700020", "nombre": "EG 0.0 NR 4X6 25CL URUGUAY MCLAREN", "umb": "CJ"}, {"codigo": "700021", "nombre": "EG 0.0 NR 6X4 33CL MCLAREN", "umb": "CJ"}, {"codigo": "700022", "nombre": "EG 0.0 NR 6X4 33CL ESTE MCLAREN", "umb": "CJ"}, {"codigo": "700023", "nombre": "EG 0.0 NR 2X12 33CL UK MCLAREN", "umb": "CJ"}, {"codigo": "700024", "nombre": "EG 0.0 SLK 4X6 33CL PACK EXP MCLAREN", "umb": "CJ"}, {"codigo": "700025", "nombre": "EG 0.0 NR 4X6 25CL EXP MCLAREN 25", "umb": "CJ"}, {"codigo": "700027", "nombre": "EG 0.0 SLK33 4X6 E PACK BRASIL MOTO GP", "umb": "CJ"}, {"codigo": "700028", "nombre": "EG 0.0 NR 4X6 33CL BRASIL MOTO GP", "umb": "CJ"}, {"codigo": "700029", "nombre": "EG 0.0 TOSTADA NR 4X6 33CL BRASIL MOT GP", "umb": "CJ"}, {"codigo": "700040", "nombre": "EG 0.0 TOSTADA SLK FRIGO 1X10 33CL E", "umb": "PCK"}, {"codigo": "700041", "nombre": "EG 0.0 TOSTADA SLK 1X10 33CL MEDIO PAL", "umb": "PCK"}, {"codigo": "700042", "nombre": "EG 0.0 TOSTADA SLK 1X24 33CL E BDJ", "umb": "BDJ"}, {"codigo": "700043", "nombre": "EG 0.0 TOSTADA SLK 4X6 33CL PACK E LE", "umb": "CJ"}, {"codigo": "700044", "nombre": "EG 0.0 TOSTADA SLK33  REU", "umb": "CJ"}, {"codigo": "700045", "nombre": "EG 0.0 TOSTADA SLK33  REU", "umb": "CJ"}, {"codigo": "700046", "nombre": "EG 0.0 TOSTADA SLK33  REU", "umb": "CJ"}, {"codigo": "700048", "nombre": "RIVERA REPOSADA CUSTOM L", "umb": "L"}, {"codigo": "700050", "nombre": "EG 0.0 NEGRA R 24B 33CL LN", "umb": "CJ"}, {"codigo": "700051", "nombre": "EG 0.0 NEGRA NR 4X6 25CL", "umb": "CJ"}, {"codigo": "700055", "nombre": "EG 0.0 TOSTADA R 24B 33CL", "umb": "CJ"}, {"codigo": "700056", "nombre": "EG 0.0 TOSTADA NR 4X6 25CL", "umb": "CJ"}, {"codigo": "700057", "nombre": "EG 0.0 TOSTADA SLK NMP 4X6 33CL", "umb": "CJ"}, {"codigo": "700060", "nombre": "EG 0.0 TOSTADA WRAP 6X4 NR 33CL USA", "umb": "CJ"}, {"codigo": "700061", "nombre": "EG 0.0 NR 4X6 25CL", "umb": "CJ"}, {"codigo": "700071", "nombre": "EG 0.0 NR 4X6 25CL TURQUIA", "umb": "CJ"}, {"codigo": "700072", "nombre": "EG 0.0 NR 4X6 25CL ARABE", "umb": "CJ"}, {"codigo": "700074", "nombre": "EG 0.0 TOSTADA NR 4X6 25CL ARABE", "umb": "CJ"}, {"codigo": "700076", "nombre": "EG 0.0 6 MALTAS NR 4X6 25CL", "umb": "CJ"}, {"codigo": "700077", "nombre": "EG 0.0 NR 6X4 33CL BCORP", "umb": "CJ"}, {"codigo": "700078", "nombre": "EG 0.0 NR 4X6 25CL EO CHINA METRO", "umb": "CJ"}, {"codigo": "700079", "nombre": "EG 0.0 SLK 1X24 33CL E", "umb": "BDJ"}, {"codigo": "700080", "nombre": "EG 0.0 NR 24B 4X6 BASKET 33CL USA", "umb": "CJ"}, {"codigo": "700081", "nombre": "EG 0.0 BNR33 6x4 WRAP EUROPA", "umb": "CJ"}, {"codigo": "700082", "nombre": "EG 0.0 NR 6X4 33CL EUROPA", "umb": "CJ"}, {"codigo": "700083", "nombre": "EG 0.0 NR 2X12 33CL UK", "umb": "CJ"}, {"codigo": "700084", "nombre": "EG 0.0 NR 6X4 33CL MEXICO", "umb": "CJ"}, {"codigo": "700085", "nombre": "EG 0.0 NR 6X4 33CL EUROPA DEL ESTE", "umb": "CJ"}, {"codigo": "700086", "nombre": "EG 0.0 NR 4X6 33CL BRASIL", "umb": "CJ"}, {"codigo": "700087", "nombre": "EG 0.0 NR 4X6 33CL USA", "umb": "CJ"}, {"codigo": "700088", "nombre": "EG 0.0 TOSTADA NR 4X6 33CL BRASIL", "umb": "CJ"}, {"codigo": "700089", "nombre": "EG 0.0 SLK NMP 4X6 33CL", "umb": "CJ"}, {"codigo": "700090", "nombre": "EG 0.0 SLK 4X6 33CL BRASIL", "umb": "CJ"}, {"codigo": "700092", "nombre": "EG 0.0 SLK 4X6 33CL", "umb": "CJ"}, {"codigo": "700097", "nombre": "EG 0.0 BDJA 1X24 LATA 50CL INTERNACIONAL", "umb": "BDJ"}, {"codigo": "700098", "nombre": "EG 0.0 SLK 6X4 50CL INT-USA", "umb": "CJ"}, {"codigo": "700099", "nombre": "EG 0.0 SLK 4X6 33CL URUGUAY", "umb": "CJ"}, {"codigo": "700101", "nombre": "EG NR 1X12 25CL 11 MAS 1 M", "umb": "PCK"}, {"codigo": "700102", "nombre": "EG SLK 1X10 33CL PROMO 8 MAS 2", "umb": "CJ"}, {"codigo": "700103", "nombre": "EG BARRIL NR 30L EXP", "umb": "BRL"}, {"codigo": "700104", "nombre": "EG BARRIL 20L JAPON", "umb": "BRL"}, {"codigo": "700105", "nombre": "EG BARRIL 30L NRET USA", "umb": "BRL"}, {"codigo": "700107", "nombre": "EG SLK 1X10 33CL M 8 MAS 2", "umb": "PCK"}, {"codigo": "700108", "nombre": "EG NR 1X24 25CL PROMO 20 MAS 4", "umb": "CJ"}, {"codigo": "700109", "nombre": "EG NR 1X6 25CL 5 MAS 1 M", "umb": "PCK"}, {"codigo": "700110", "nombre": "EG NR 1X24 25CL E PROMO 20 MAS 4", "umb": "CJ"}, {"codigo": "700112", "nombre": "EG NR 4X6 25CL E PROMO 5 MAS 1", "umb": "CJ"}, {"codigo": "700114", "nombre": "EG NR 2X12 25CL 11 MAS 1", "umb": "CJ"}, {"codigo": "700117", "nombre": "EG SLK 1X24 33CL", "umb": "BDJ"}, {"codigo": "700118", "nombre": "EG SLK 1X24 50CL", "umb": "BDJ"}, {"codigo": "700119", "nombre": "EG SIN GLUTEN NR 1X24 33CL EUR ESTE", "umb": "CJ"}, {"codigo": "700120", "nombre": "EG SLK 1X24 33CL E BAND 70 RECICL.ALE", "umb": "BDJ"}, {"codigo": "700124", "nombre": "EG NR 1X12 20CL M", "umb": "CJ"}, {"codigo": "700125", "nombre": "EG NR 1X20 20CL CHINA TAPON", "umb": "CJ"}, {"codigo": "700126", "nombre": "EG NR  1X24 33CL NORDICS Y EAST", "umb": "CJ"}, {"codigo": "700127", "nombre": "EG NR 1X6 66CL 5 CAPAS", "umb": "CJ"}, {"codigo": "700129", "nombre": "EG NR 1x6 BOT 66Cl USA", "umb": "CJ"}, {"codigo": "700130", "nombre": "EG R 24B 33CL I TERCIO 7 CAPAS", "umb": "CJ"}, {"codigo": "700135", "nombre": "EG SLK 1X10 33CL Q", "umb": "PCK"}, {"codigo": "700136", "nombre": "EG NR 1X12 25CL Q", "umb": "PCK"}, {"codigo": "700137", "nombre": "EG SLK NMP 6x33CL Q", "umb": "CJ"}, {"codigo": "700138", "nombre": "EG NR 2X3 33CL POLONIA", "umb": "CJ"}, {"codigo": "700139", "nombre": "EG NR 4X6 33CL ETIQUETA PERSONALIZADA", "umb": "CJ"}, {"codigo": "700143", "nombre": "EG 24B 4X6 PACK 33CL AUSTRALIA", "umb": "CJ"}, {"codigo": "700144", "nombre": "EG NR 4x6 33CL", "umb": "CJ"}, {"codigo": "700145", "nombre": "EG NR 1X24 33CL MEXICO", "umb": "CJ"}, {"codigo": "700149", "nombre": "EG NR 1X24 20CL", "umb": "CJ"}, {"codigo": "700150", "nombre": "EG NR 1X20 20CL USA PUERTO RICO", "umb": "CJ"}, {"codigo": "700151", "nombre": "EG NR 4X6 33CL E CONTRA EUR", "umb": "CJ"}, {"codigo": "700152", "nombre": "EG NR 1X24 33CL EUR ESTE", "umb": "CJ"}, {"codigo": "700153", "nombre": "EG NR 4X6 33CL AUSTRALIA", "umb": "CJ"}, {"codigo": "700155", "nombre": "EG NR 4X6 33CL INDIA", "umb": "CJ"}, {"codigo": "700156", "nombre": "EG BARRIL NR 20L EXP", "umb": "BRL"}, {"codigo": "700157", "nombre": "EG NR 1X24 33CL", "umb": "CJ"}, {"codigo": "700158", "nombre": "EG NR 1X24 33CL", "umb": "CJ"}, {"codigo": "700160", "nombre": "EG SIN GLUTEN R 24B 33CL LN", "umb": "CJ"}, {"codigo": "700161", "nombre": "EG NR 4X6 25CL LN FRANCIA", "umb": "CJ"}, {"codigo": "700162", "nombre": "EG SIN GLUTEN NR 4X6 25CL LN", "umb": "CJ"}, {"codigo": "700163", "nombre": "EG SIN GLUTEN NR 4X6 33CL USA-P.RICO", "umb": "CJ"}, {"codigo": "700164", "nombre": "EG SIN GLUTEN NR 4X6 33CL", "umb": "CJ"}, {"codigo": "700165", "nombre": "EG SEM GLUTEN 6X4 33CL BRASIL ALIG", "umb": "CJ"}, {"codigo": "700166", "nombre": "EG SIN GLUTEN NR 6X4 33CL", "umb": "CJ"}, {"codigo": "700167", "nombre": "EG SIN GLUTEN NR 1X24 33CL", "umb": "CJ"}, {"codigo": "700169", "nombre": "EG MENOR TEOR GLUTEN 6X4 33CL BRASIL", "umb": "CJ"}, {"codigo": "700170", "nombre": "EG R 30B 20CL ALEMANIA BERLIN", "umb": "CJ"}, {"codigo": "700171", "nombre": "EG NR 1X24 33CL INDIA", "umb": "CJ"}, {"codigo": "700172", "nombre": "EG SLK 4X6 33CL E ALEMANIA 4 MAS 2", "umb": "CJ"}, {"codigo": "700173", "nombre": "EG NR 1X12 25CL M", "umb": "PCK"}, {"codigo": "700174", "nombre": "EG NR 4X6 20CL USA", "umb": "CJ"}, {"codigo": "700175", "nombre": "EG NR 1X24 25CL M", "umb": "CJ"}, {"codigo": "700176", "nombre": "EG WRP AROUND 1x24 25CL NR cASAS MEDIPAL", "umb": "CJ"}, {"codigo": "700177", "nombre": "EG SLK 4X6 33CL E CLUB MEXICO", "umb": "CJ"}, {"codigo": "700178", "nombre": "EG NR 1X24 25CL MARRUECOS", "umb": "CJ"}, {"codigo": "700180", "nombre": "EG NR 24B 4X6 BASKET 33CL USA.", "umb": "CJ"}, {"codigo": "700181", "nombre": "EG NR 1X24 33CL CHINA RIV. SH", "umb": "CJ"}, {"codigo": "700183", "nombre": "EG SIN GLUTEN SLK NMP 4X6 33CL", "umb": "CJ"}, {"codigo": "700184", "nombre": "EG NR 4X6 33CL E CHINA OTTNO CH", "umb": "CJ"}, {"codigo": "700185", "nombre": "EG SIN GLUTEN SLK NMP 4X6 33CL M", "umb": "PCK"}, {"codigo": "700186", "nombre": "EG NR 1X20 25CL", "umb": "PCK"}, {"codigo": "700187", "nombre": "EG NR 4X6 33CL USA", "umb": "CJ"}, {"codigo": "700188", "nombre": "EG NR 4X6 33CL E BERLIN USA", "umb": "CJ"}, {"codigo": "700189", "nombre": "EG NMP 33CL BOX 72 PCK", "umb": "BOX"}, {"codigo": "700190", "nombre": "EG NR 1X6 20CL M", "umb": "CJ"}, {"codigo": "700191", "nombre": "EG NR 1X12 25CL E SIN FILM", "umb": "PCK"}, {"codigo": "700192", "nombre": "EG SIN GLUTEN 6X4 33CL EXP", "umb": "CJ"}, {"codigo": "700193", "nombre": "EG NR 4X6 33CL ANCHINO 2025 METRO", "umb": "CJ"}, {"codigo": "700194", "nombre": "EG SLK NMP 1X6 33CL M", "umb": "PCK"}, {"codigo": "700195", "nombre": "EG SLK 1X10 33CL M", "umb": "PCK"}, {"codigo": "700198", "nombre": "EG SLK NMP 4X6 33CL", "umb": "CJ"}, {"codigo": "700199", "nombre": "EG SLK NMP 4X6 25CL", "umb": "CJ"}, {"codigo": "700200", "nombre": "EG ESPECIAL TANQUE L", "umb": "L"}, {"codigo": "700201", "nombre": "EG BARRIL 50L", "umb": "BRL"}, {"codigo": "700202", "nombre": "EG BARRIL 30L", "umb": "BRL"}, {"codigo": "700204", "nombre": "EG NR 4X6 20CL", "umb": "CJ"}, {"codigo": "700205", "nombre": "EG NR 2X12 20CL", "umb": "CJ"}, {"codigo": "700208", "nombre": "EG NR ICEBOX 1X20 20CL", "umb": "PCK"}, {"codigo": "700210", "nombre": "EG R 24B 33CL LN", "umb": "CJ"}, {"codigo": "700212", "nombre": "EG SLK 1X24 50CL", "umb": "BDJ"}, {"codigo": "700213", "nombre": "EG ESP BNR20 4X6 E MINI bot. BOX 63PACKS", "umb": "BOX"}, {"codigo": "700214", "nombre": "EG NR 1X20 20CL", "umb": "CJ"}, {"codigo": "700215", "nombre": "EG R 30B 20CL LN", "umb": "CJ"}, {"codigo": "700239", "nombre": "EG SLK 4X6 33CL E USA", "umb": "CJ"}, {"codigo": "700240", "nombre": "EG PACK 2x12BOT 25CL (11+1)", "umb": "CJ"}, {"codigo": "700241", "nombre": "EG NR 4X6 33CL", "umb": "CJ"}, {"codigo": "700242", "nombre": "EG NR 24B 4X6 PACK33 USA", "umb": "CJ"}, {"codigo": "700257", "nombre": "EG WRAP AROUND 1x24B 33CL NR", "umb": "CJ"}, {"codigo": "700259", "nombre": "EG SIN GLUTEN 6X4 33CL", "umb": "CJ"}, {"codigo": "700261", "nombre": "EG NR 4X6 25CL LN", "umb": "CJ"}, {"codigo": "700263", "nombre": "EG NR 1X12 25CL M", "umb": "PCK"}, {"codigo": "700264", "nombre": "EG NR 1X6 25CL LN M", "umb": "PCK"}, {"codigo": "700266", "nombre": "EG NR 2X12 25CL", "umb": "CJ"}, {"codigo": "700269", "nombre": "EG SIN GLUTEN 6X4 33CL", "umb": "CJ"}, {"codigo": "700271", "nombre": "EG NR 4X6 33CL MAS COPA", "umb": "PCK"}, {"codigo": "700273", "nombre": "EG NR 1X12 25CL M", "umb": "PCK"}, {"codigo": "700274", "nombre": "EG PACK 1x6 LATA 33CL SLEEK MEDIO PALET", "umb": "PCK"}, {"codigo": "700277", "nombre": "EG NR 1X24 25CL", "umb": "CJ"}, {"codigo": "700278", "nombre": "EG 1X12 25CL Q", "umb": "PCK"}, {"codigo": "700279", "nombre": "EG NR 2X12 25CL E USA", "umb": "CJ"}, {"codigo": "700288", "nombre": "EG SLK 1X16 33CL", "umb": "PCK"}, {"codigo": "700291", "nombre": "EG SLK 1X24 33CL SUS 700117", "umb": "BDJ"}, {"codigo": "700292", "nombre": "EG  SLK 4X6 33CL", "umb": "CJ"}, {"codigo": "700293", "nombre": "EG SLK 1X10 33CL", "umb": "PCK"}, {"codigo": "700295", "nombre": "EG SLK 1X10 33CL M", "umb": "PCK"}, {"codigo": "700296", "nombre": "EG SLK 4X6 25CL", "umb": "CJ"}, {"codigo": "700297", "nombre": "EG SLK 1X10 33CL E 8 MAS 2", "umb": "PCK"}, {"codigo": "700300", "nombre": "1906 RESERVA ESP. TANQUE L", "umb": "L"}, {"codigo": "700301", "nombre": "1906 KEG 3L", "umb": "BRL"}, {"codigo": "700302", "nombre": "1906 BARRIL 30L", "umb": "BRL"}, {"codigo": "700303", "nombre": "1906 B30L NRET USA", "umb": "BRL"}, {"codigo": "700305", "nombre": "1906 BARRIL 50L USA", "umb": "BRL"}, {"codigo": "700309", "nombre": "1906 NR 4X6 20CL", "umb": "CJ"}, {"codigo": "700310", "nombre": "1906 R 24B 33CL LN", "umb": "CJ"}, {"codigo": "700311", "nombre": "1906 NR 4X6 20CL PAL 84CJ", "umb": "CJ"}, {"codigo": "700312", "nombre": "1906 SLK 1X24 50CL", "umb": "BDJ"}, {"codigo": "700313", "nombre": "1906 NR 4X6 20CL", "umb": "CJ"}, {"codigo": "700314", "nombre": "1906 NR 2X12 20CL", "umb": "CJ"}, {"codigo": "700317", "nombre": "1906 NR 1X12 50CL", "umb": "CJ"}, {"codigo": "700319", "nombre": "1906 NR 1X20  20CL", "umb": "CJ"}, {"codigo": "700324", "nombre": "1906 SLK 4X6 33CL", "umb": "CJ"}, {"codigo": "700325", "nombre": "1906 SLK33 4X6 LIDL restyle", "umb": "CJ"}, {"codigo": "700327", "nombre": "1906 4X6LATAS 33CL LIDL", "umb": "CJ"}, {"codigo": "700328", "nombre": "1906 SLK NMP 4X6 33CL", "umb": "CJ"}, {"codigo": "700329", "nombre": "1906 SLK NMP 4X6 33CL 7CAP", "umb": "CJ"}, {"codigo": "700330", "nombre": "1906 NR 24B 4X6 PACK 33CL", "umb": "CJ"}, {"codigo": "700342", "nombre": "1906 NR 24B 4X6 PACK EEUU", "umb": "CJ"}, {"codigo": "700347", "nombre": "1906 RESESP 33 6x4BRASIL", "umb": "CJ"}, {"codigo": "700353", "nombre": "1906 NR 1X6 33CL PACK 3CAPAS", "umb": "PCK"}, {"codigo": "700371", "nombre": "1906 BNR33 6x4 F EXP MEXICO", "umb": "CJ"}, {"codigo": "700372", "nombre": "1906 NR 1X24 33CL MEXICO", "umb": "CJ"}, {"codigo": "700374", "nombre": "1906 RESESP 33 4x6BRASIL", "umb": "CJ"}, {"codigo": "700375", "nombre": "1906 NR 4X6 33CL BRASIL", "umb": "CJ"}, {"codigo": "700376", "nombre": "1906  SLK 1X10 33CL M", "umb": "PCK"}, {"codigo": "700377", "nombre": "1906 NR 4X6 33CL CHINA OTTONO CHENGDU", "umb": "CJ"}, {"codigo": "700379", "nombre": "1906 RV 2X8 33CL MAS COPA", "umb": "CJ"}, {"codigo": "700380", "nombre": "1906 NR 24B 4X6 BASKET 33CL USA", "umb": "CJ"}, {"codigo": "700381", "nombre": "1906 NR 1X24 33CL", "umb": "CJ"}, {"codigo": "700382", "nombre": "1906 NR 4X6 33CL", "umb": "CJ"}, {"codigo": "700384", "nombre": "1906 NR 2X12 33CL", "umb": "CJ"}, {"codigo": "700386", "nombre": "1906 NR 2BC 2RV 2GI  33CL PACK VENTANA", "umb": "CJ"}, {"codigo": "700387", "nombre": "1906 NR 4X6 33CL USA", "umb": "CJ"}, {"codigo": "700388", "nombre": "1906 NR 1X6 33CL M", "umb": "PCK"}, {"codigo": "700390", "nombre": "1906 NR 1X6 33CL PACK 3CAPAS BOT.ALIG", "umb": "PCK"}, {"codigo": "700392", "nombre": "1906 SLK 1X24 33CL BANDEJA", "umb": "BDJ"}, {"codigo": "700393", "nombre": "1906 SLK 1X24 33CL", "umb": "BDJ"}, {"codigo": "700394", "nombre": "1906 NR 4x6 20CL BOX 63 PCK", "umb": "BOX"}, {"codigo": "700397", "nombre": "1906 SLK 1X10 33CL", "umb": "PCK"}, {"codigo": "700398", "nombre": "1906 NMP 33CL BOX 72 PCK", "umb": "BOX"}, {"codigo": "700399", "nombre": "1906 NR 12RV 12BC 12GI BOX", "umb": "BOX"}, {"codigo": "700400", "nombre": "EG GRANEL ALEMANIA EXW", "umb": "L"}, {"codigo": "700401", "nombre": "EG GPILS BARRIL 50L EXP UK", "umb": "BRL"}, {"codigo": "700403", "nombre": "EG GPILS BARRIL 30L EXP UK", "umb": "BRL"}, {"codigo": "700404", "nombre": "EG PREM BARRIL 30L NR EXP HR", "umb": "BRL"}, {"codigo": "700405", "nombre": "EG PREM BARRIL NR 20L EXP HR", "umb": "BRL"}, {"codigo": "700412", "nombre": "LA ESTRELLA DE GALICIA NR 1X24 33CL EASY", "umb": "CJ"}, {"codigo": "700429", "nombre": "EG LAGER P.MALT SLK 6X4 44CL E EXP UK", "umb": "CJ"}, {"codigo": "700430", "nombre": "EG LAGER P.MALT SLK 1X10 44CL E EXP UK", "umb": "PCK"}, {"codigo": "700434", "nombre": "EG LAGER P.MALT NR 2X12 33CL CHILE", "umb": "CJ"}, {"codigo": "700440", "nombre": "LA ESTRELLA DE GALICIA NR 4X6 33CL", "umb": "CJ"}, {"codigo": "700445", "nombre": "EG LAGER P.MALT SLK 6X4 44CL E EXP", "umb": "CJ"}, {"codigo": "700446", "nombre": "EG LAGER P.MALT SLK 1X10 44CL E EXP", "umb": "PCK"}, {"codigo": "700447", "nombre": "EG LAGER P.MALT SLK 1X24 44CL E EXP", "umb": "BDJ"}, {"codigo": "700448", "nombre": "EG LAGER P.MALT NR 1X12 62CL", "umb": "CJ"}, {"codigo": "700449", "nombre": "EG LAGER P.MALT NR 6X4 33CL CHILE", "umb": "CJ"}, {"codigo": "700453", "nombre": "EG LAGER P.MALT BNR50 1X12 EXP UK", "umb": "CJ"}, {"codigo": "700454", "nombre": "EG LAGER P.MALT NR 2X12 33CL", "umb": "CJ"}, {"codigo": "700455", "nombre": "EG LAGER P.MALT NR 1X24 33CL", "umb": "CJ"}, {"codigo": "700456", "nombre": "EG LAGER P.MALT NR 6X4 33CL", "umb": "CJ"}, {"codigo": "700457", "nombre": "EG LAGER P.MALT NR 1X6 66CL", "umb": "CJ"}, {"codigo": "700458", "nombre": "EG C.LAGER SLK33 4X6 F EXP PURE MALT", "umb": "CJ"}, {"codigo": "700459", "nombre": "EG LAGER P.MALT SLK 4X6 50CL", "umb": "CJ"}, {"codigo": "700478", "nombre": "EG LAGER P.MALT SLK  NMP 4X6 33CL EXP", "umb": "CJ"}, {"codigo": "700479", "nombre": "EG LAGER P.MALT SLK 4X6 50CL DRS IRLAND", "umb": "CJ"}, {"codigo": "700490", "nombre": "EG LAGER P.MALT NR 2x12 33CL UK", "umb": "CJ"}, {"codigo": "700491", "nombre": "EG LAGER P.MALT WRAP NR 1X24 33CL UK", "umb": "CJ"}, {"codigo": "700494", "nombre": "EG LAGER P.MALT NR 6X4 33CL UK", "umb": "CJ"}, {"codigo": "700495", "nombre": "EG LAGER NR PACK 6 BOT 33CL+COPA", "umb": "PCK"}, {"codigo": "700499", "nombre": "EG LAGER P.MALT NR 2X12 33CL AUS y NZ", "umb": "CJ"}, {"codigo": "700500", "nombre": "EG GPILS GRANEL", "umb": "L"}, {"codigo": "700523", "nombre": "EG LA DE KIWI NR 1X4 50CL", "umb": "CJ"}, {"codigo": "700524", "nombre": "EG LAGER INVIERNO R 24B 33CL", "umb": "CJ"}, {"codigo": "700525", "nombre": "EG LAGER INVIERNO SLK NMP 4X6 33CL E", "umb": "CJ"}, {"codigo": "700526", "nombre": "EG LAGER VERANO R 24B 33CL", "umb": "CJ"}, {"codigo": "700527", "nombre": "EG LAGER DE VERANO SLK NMP 4X6 33CL", "umb": "CJ"}, {"codigo": "700528", "nombre": "EG KMO NR 1X4 50CL", "umb": "CJ"}, {"codigo": "700530", "nombre": "EG LA ESTRELLA DEL CAMINO R 24B 33CL LN", "umb": "CJ"}, {"codigo": "700531", "nombre": "EG LA ESTRELLA DEL CAMINO NR 4X6 33CL", "umb": "CJ"}, {"codigo": "700532", "nombre": "EG R 24B 33CL ESTRELLA DE VERANO", "umb": "CJ"}, {"codigo": "700533", "nombre": "EG ESTRELLA DE VERANO SLK NMP 4X6 33CL", "umb": "CJ"}, {"codigo": "700535", "nombre": "EG LA DE CAFE NR 1X4 50CL", "umb": "CJ"}, {"codigo": "700536", "nombre": "EG NR 1X24 33CL GLITTER LCDP", "umb": "BDJ"}, {"codigo": "700538", "nombre": "EG NAVIDAD FEC 4X6 33CL NR Bot Alig", "umb": "CJ"}, {"codigo": "700539", "nombre": "EG NAVIDAD R 24B 33CL", "umb": "CJ"}, {"codigo": "700547", "nombre": "EG NAVIDAD 1X6 75CL", "umb": "CJ"}, {"codigo": "700549", "nombre": "EG NR 1X6 75CL ED. ESP ANIV BRASIL", "umb": "CJ"}, {"codigo": "700553", "nombre": "EG EL ALMENDRO NR 1X4 50CL", "umb": "CJ"}, {"codigo": "700581", "nombre": "EG PIMIENTOS NR 1X6 50CL", "umb": "CJ"}, {"codigo": "700590", "nombre": "EG PULPO NR 1X6 50CL", "umb": "CJ"}, {"codigo": "700596", "nombre": "EG LA ESPECIALISTA NR 1X4 50CL", "umb": "CJ"}, {"codigo": "700597", "nombre": "EG HIERBAS NR 4X50CL", "umb": "CJ"}, {"codigo": "700600", "nombre": "EG PILSEN TANQUE L", "umb": "L"}, {"codigo": "700604", "nombre": "EG PREM PILSEN BARRIL 30", "umb": "BRL"}, {"codigo": "700615", "nombre": "EG GPILS BARRIL 50L", "umb": "BRL"}, {"codigo": "700625", "nombre": "EG WORLD LAGER 2x12 BOT 33Cl NR", "umb": "CJ"}, {"codigo": "700631", "nombre": "EG SIN GLUTEN KEG 3L", "umb": "BRL"}, {"codigo": "700639", "nombre": "EG WL BNR33 6X4 BRASIL", "umb": "CJ"}, {"codigo": "700640", "nombre": "LA ESTRELLA DE GALICIA NR 4X6 33CL", "umb": "CJ"}, {"codigo": "700645", "nombre": "LA EST DE GALICIA NR 33CL BOX 45 PCK", "umb": "BOX"}, {"codigo": "700651", "nombre": "EG GPILS BARRIL 30L", "umb": "BRL"}, {"codigo": "700663", "nombre": "LA ESTRELLA DE GALICIA NR 4X6 33CL STEIN", "umb": "CJ"}, {"codigo": "700685", "nombre": "EG WORLD LAGER BNR 33CL 6X4", "umb": "CJ"}, {"codigo": "700690", "nombre": "EG WORLD LAGER 1x24BOT 33CL", "umb": "CJ"}, {"codigo": "700694", "nombre": "EG PREM BNR33 6x4 E MEXICO", "umb": "CJ"}, {"codigo": "700700", "nombre": "EG MALTA TANQUE L", "umb": "L"}, {"codigo": "700704", "nombre": "1906 BLACKCOUPAGE NR 2X2 33CL MAS COPA", "umb": "CJ"}, {"codigo": "700717", "nombre": "1906 BLACKCOUPAGE BNR50 1X12", "umb": "CJ"}, {"codigo": "700730", "nombre": "1906 BLACKCOUPAGE NR 6X4 33CL", "umb": "CJ"}, {"codigo": "700735", "nombre": "1906 BLACKCOUPAGE NR  33CL Q BOX 75 PCK", "umb": "BOX"}, {"codigo": "700736", "nombre": "1906 BLACKCOUPAGE 6X4 BNR 33CL CONOSUR", "umb": "CJ"}, {"codigo": "700740", "nombre": "1906 BLACKCOUPAGE NR 4X6 33CL", "umb": "CJ"}, {"codigo": "700743", "nombre": "1906 BLACKCOUPAGE NR 4X6 33CL", "umb": "CJ"}, {"codigo": "700746", "nombre": "1906 BLACKCOUPAGE NR 4X6 33CL", "umb": "CJ"}, {"codigo": "700749", "nombre": "1906 BC RV GI 3X4 33CL MAS BOMBONES", "umb": "CJ"}, {"codigo": "700800", "nombre": "EG 0.0 TOSTADA TANQUE CUSTOM", "umb": "L"}, {"codigo": "700801", "nombre": "1906 GALICIAN IRISH RED 4X6 33CL", "umb": "CJ"}, {"codigo": "700802", "nombre": "1906 G. IRISH RED 4X6 33CL BOX 50 PCK", "umb": "BOX"}, {"codigo": "700803", "nombre": "1906 GALICIAN IRISH RED 4X6 33CL", "umb": "CJ"}, {"codigo": "700804", "nombre": "1906 GALICAN IRISH RED 33CL BOX 50 PCK", "umb": "BOX"}, {"codigo": "700805", "nombre": "1906 MAS RED NR 33CL 4 MAS 2 Y COPA", "umb": "CJ"}, {"codigo": "700850", "nombre": "1906 NR 1X6 33CL M 5CAPAS", "umb": "PCK"}, {"codigo": "700852", "nombre": "1906 NR 1X6 20CL M", "umb": "PCK"}, {"codigo": "700853", "nombre": "1906 BARRIL 20L", "umb": "BRL"}, {"codigo": "700855", "nombre": "1906 NR 2X12 33CL PROMO CHEFS", "umb": "CJ"}, {"codigo": "700856", "nombre": "1906 NR 6x4 33CL E", "umb": "CJ"}, {"codigo": "700857", "nombre": "1906 NR 2X12 20CL ALIG.", "umb": "CJ"}, {"codigo": "700858", "nombre": "1906 NR 4X6 20CL ALIG.", "umb": "CJ"}, {"codigo": "700870", "nombre": "RIVERA REPOSADA NR 6X4 33CL E", "umb": "CJ"}, {"codigo": "700871", "nombre": "RIVERA REPOSADA NR 1X24 33CL E", "umb": "CJ"}, {"codigo": "700872", "nombre": "RIVERA REPOSADA BARRIL 20L", "umb": "BRL"}, {"codigo": "700873", "nombre": "RIVERA REPOSADA NR 6X4  33CL M", "umb": "CJ"}, {"codigo": "700874", "nombre": "RIVERA REPOSADA NR 1X24 33CL M", "umb": "CJ"}, {"codigo": "700875", "nombre": "RIVERA REPOSADA NR 33CL BOX 60 PCK", "umb": "BOX"}, {"codigo": "700876", "nombre": "RIVERA REPOSADA NR 1X12B 75CL", "umb": "CJ"}, {"codigo": "700900", "nombre": "EG TANQUE CUSTOM L", "umb": "L"}, {"codigo": "700910", "nombre": "1906 RED VINTAGE R 24B 33CL", "umb": "CJ"}, {"codigo": "700915", "nombre": "1906 RED VINTAGE NR 33CL BOX 54 PCK", "umb": "BOX"}, {"codigo": "700917", "nombre": "1906 REDVINTAGE BNR50 1X12", "umb": "CJ"}, {"codigo": "700918", "nombre": "1906 MAS RED VINTAGE NR 33CL BOX 54 PCK", "umb": "BOX"}, {"codigo": "700919", "nombre": "1906 RED VINTAGE NMP 33CL 54 PCK", "umb": "BOX"}, {"codigo": "700922", "nombre": "EG 0.0 MAS TOSTADA SLK 33CL BOX 72 PCK", "umb": "BOX"}, {"codigo": "700923", "nombre": "EG 0.0 MAS TOSTADA SLK 33CL BOX 54 PCK", "umb": "BOX"}, {"codigo": "700924", "nombre": "EG 0.0 MAS TOSTADA NR 25CL BOX 54 PCK", "umb": "BOX"}, {"codigo": "700925", "nombre": "1906 MAS RED VINTAGE SLK 33CL 72 PCK", "umb": "BOX"}, {"codigo": "700926", "nombre": "1906 REDVINTAGE SLK33 4X6", "umb": "CJ"}, {"codigo": "700927", "nombre": "1906 RED VINTAGE SLK 1X24 33CL", "umb": "BDJ"}, {"codigo": "700928", "nombre": "1906 RED VINTAGE SLK NMP 4X6 33CL", "umb": "CJ"}, {"codigo": "700929", "nombre": "1906 MAS RED VINTAGE NMP 33CL 54 PCK", "umb": "BOX"}, {"codigo": "700935", "nombre": "1906 RED VINTAGE NR 33CL Q BOX 50 PCK", "umb": "BOX"}, {"codigo": "700936", "nombre": "E.GALICIA 1906 RED VINTAGE BNR33 6X4BRA", "umb": "CJ"}, {"codigo": "700938", "nombre": "1906 RV 4X6B 33CL USA", "umb": "CJ"}, {"codigo": "700941", "nombre": "1906 RED VINTAGE NR 4X6 33CL", "umb": "CJ"}, {"codigo": "700942", "nombre": "EG 1906 RED VINTAGE BNR33 4x6 BRASIL", "umb": "CJ"}, {"codigo": "700943", "nombre": "1906 RV NR 24 33CL CON CAJA RET", "umb": "CJ"}, {"codigo": "700944", "nombre": "1906 4RV 2IRISH NR 3X6 33CL COPA", "umb": "CJ"}, {"codigo": "700945", "nombre": "1906 RED VINTAGE NR 4X6 33CL", "umb": "CJ"}, {"codigo": "700947", "nombre": "1906 RED VINTAGE NR  33CL BOX 50 PCK", "umb": "BOX"}, {"codigo": "700950", "nombre": "LUPIA NUGGET SLK NMP 4X6 33CL", "umb": "CJ"}, {"codigo": "700951", "nombre": "LUPIA MAGNUM SLK NMP 4X6 33CL", "umb": "CJ"}, {"codigo": "700954", "nombre": "LUPIA NUGGET NMP 33CL BOX 72 PCK", "umb": "BOX"}, {"codigo": "700956", "nombre": "LUPIA NUGGET R 24B 33CL", "umb": "CJ"}, {"codigo": "700957", "nombre": "LUPIA MAGNUM NMP 33CL BOX 72 PCK", "umb": "BOX"}, {"codigo": "700958", "nombre": "LUPIA MIXTO NMP 33CL BOX 72PCK", "umb": "BOX"}, {"codigo": "700959", "nombre": "LUPIA NUGGET SLK 1X10 33CL", "umb": "PCK"}, {"codigo": "700960", "nombre": "LUPIA NUGGET BARRIL 30L", "umb": "BRL"}, {"codigo": "700965", "nombre": "EG ESPECIAL KEG 3L", "umb": "BRL"}, {"codigo": "705947", "nombre": "CERVEZA SESSION BEER BARRIL NR 20L", "umb": "BRL"}, {"codigo": "705949", "nombre": "CERVEZA PILSEN EKONOKE BARRIL 20L NR", "umb": "BRL"}, {"codigo": "705951", "nombre": "CERVEZA IPA BARRIL NR 20L", "umb": "BRL"}, {"codigo": "705952", "nombre": "CERVEZA IPA 50CL", "umb": "BOT"}, {"codigo": "705953", "nombre": "CERVEZA CON PAN 50CL", "umb": "BOT"}, {"codigo": "705955", "nombre": "CERVEZA CON PAN BARRIL NR 20L", "umb": "BRL"}, {"codigo": "705958", "nombre": "FRAMBOISEBEER 24X33CL LATA", "umb": "BDJ"}, {"codigo": "705961", "nombre": "EG FDC BITTER SLK50 PACK 2x2", "umb": "CJ"}, {"codigo": "705968", "nombre": "MANGO LEMON BEER 24X33CL LATA", "umb": "BDJ"}, {"codigo": "705970", "nombre": "EG WITBIER 1X24 33CL EXP", "umb": "CJ"}, {"codigo": "705977", "nombre": "LEMON BEER SLK 6X4 33CL", "umb": "BDJ"}, {"codigo": "705978", "nombre": "B LEMON BOT24X33CL NR", "umb": "CJ"}, {"codigo": "705979", "nombre": "CODIGO NUEVO 705981 B LEMON 24X33CL LATA", "umb": "BDJ"}, {"codigo": "705980", "nombre": "B LEMON BARRIL 30L", "umb": "BRL"}, {"codigo": "705981", "nombre": "B LEMON SLK 1X24 33CL", "umb": "BDJ"}, {"codigo": "705982", "nombre": "B LEMON NR 1X24 33CL", "umb": "CJ"}, {"codigo": "705997", "nombre": "LEMON BEER BARRIL 30L", "umb": "BRL"}, {"codigo": "706200", "nombre": "EG SLK 1X30 33CL E BAND FILM", "umb": "BDJ"}, {"codigo": "706201", "nombre": "EG NR 1X20 20CL M", "umb": "CJ"}, {"codigo": "706202", "nombre": "EG SLK 6X4 50CL E EUR ESTE", "umb": "CJ"}, {"codigo": "706203", "nombre": "EG NR 1X12 62CL E", "umb": "CJ"}, {"codigo": "706204", "nombre": "EG NR 1x24 33CL RUMANIA", "umb": "CJ"}, {"codigo": "706205", "nombre": "EG SIN GLUTEN SLK 4X6 33CL E LE", "umb": "CJ"}, {"codigo": "706206", "nombre": "EG SIN GLUTEN SLK 4X6 33CL E AR", "umb": "CJ"}, {"codigo": "706207", "nombre": "EG SIN GLUTEN SLK 4X6 33CL E AN", "umb": "CJ"}, {"codigo": "706208", "nombre": "EG SIN GLUTEN SLK 4X6 33CL E FE", "umb": "CJ"}, {"codigo": "706210", "nombre": "REU- EG SLK PCK", "umb": "PCK"}, {"codigo": "706211", "nombre": "EG SLK FRIGOPACK 2X10 33CL", "umb": "CJ"}, {"codigo": "706212", "nombre": "EG BARRIL 30 L EXPORT", "umb": "BRL"}, {"codigo": "706214", "nombre": "EG R 24B 33CL LN CDR", "umb": "CJ"}, {"codigo": "706215", "nombre": "EG NR 6X25CL BOX 54PCKS E CDREY", "umb": "BOX"}, {"codigo": "706216", "nombre": "EG SLK 1X24 50CL ALEMANIA 50 RECICLADO", "umb": "BDJ"}, {"codigo": "706217", "nombre": "EG SLK FRIGOPACK 2X10 33CL CDR", "umb": "CJ"}, {"codigo": "706218", "nombre": "EG SLK NMP 4X6 25CL BOX 63 PCK", "umb": "BOX"}, {"codigo": "706219", "nombre": "1906 33CL BOX 50 PCK", "umb": "BOX"}, {"codigo": "706221", "nombre": "EG SLK 18+6 33CL", "umb": "BDJ"}, {"codigo": "706222", "nombre": "EG SLK 18+6 33CL M", "umb": "BDJ"}, {"codigo": "706223", "nombre": "EG SLK NMP 33CL BOX 54 PCK", "umb": "BOX"}, {"codigo": "706224", "nombre": "USAR COD.706240", "umb": "PCK"}, {"codigo": "706225", "nombre": "RED MAS 1906 NR 33CL 4 MAS 2 Y COPA", "umb": "CJ"}, {"codigo": "706226", "nombre": "EG SIN GLUTEN NR 4X6 33CL CENTROAMERICA", "umb": "CJ"}, {"codigo": "706227", "nombre": "EG SLK NMP 4X6 25CL NMP CON FILM", "umb": "CJ"}, {"codigo": "706228", "nombre": "EG NR 1X20 20CL USA PUERTO RICO ALIG.", "umb": "CJ"}, {"codigo": "706229", "nombre": "EG NR 1X24 20CL ALIG.", "umb": "CJ"}, {"codigo": "706230", "nombre": "EG NR 1X6 20CL ALIG. M", "umb": "CJ"}, {"codigo": "706231", "nombre": "EG NR 4X6 20CL USA P.RICO ALIG.", "umb": "CJ"}, {"codigo": "706232", "nombre": "EG NR 4X6 20CL ALIG.", "umb": "CJ"}, {"codigo": "706233", "nombre": "EG NR 4X6 20CL COREA DEL SUR ALIG.", "umb": "CJ"}, {"codigo": "706234", "nombre": "EG NR 2X12 20CL ALIG.", "umb": "CJ"}, {"codigo": "706235", "nombre": "EG NR 1X12 20CL ALIG. M", "umb": "CJ"}, {"codigo": "706236", "nombre": "EG NR 1X20 20CL ALIG", "umb": "CJ"}, {"codigo": "706237", "nombre": "EG NR 1X20 20CL MEXICO ALIG", "umb": "CJ"}, {"codigo": "706238", "nombre": "EG NR 1X20 20CL M ALIG", "umb": "CJ"}, {"codigo": "706240", "nombre": "RIVERA REPOSADA NR 4 BOT 33CL MAS COPA", "umb": "CJ"}, {"codigo": "706241", "nombre": "EG R 24B 33CL LN PORTUGAL", "umb": "CJ"}, {"codigo": "706242", "nombre": "1906 NMP 33CL 54 PCK", "umb": "BOX"}, {"codigo": "706293", "nombre": "OKTOBERFEST TANQUE L", "umb": "L"}, {"codigo": "706294", "nombre": "PROTOTIPOS CERVEZA TANQUE 1000 L", "umb": "L"}, {"codigo": "706295", "nombre": "RIVERA REPOSADA TANQUE L", "umb": "L"}, {"codigo": "706296", "nombre": "EG 1906 RED VINTAGE TANQUE L", "umb": "L"}, {"codigo": "706297", "nombre": "EG 0,0 TANQUE L", "umb": "L"}, {"codigo": "706298", "nombre": "EG NAVIDAD TANQUE LITRO", "umb": "L"}, {"codigo": "707953", "nombre": "NORTADA A PILSEN 30L I", "umb": "BRL"}, {"codigo": "707954", "nombre": "NORTADA PILSEN TANQUE L", "umb": "L"}, {"codigo": "70A010", "nombre": "EG 0.0 R 24B 33CL LN MOTOGP", "umb": "CJ"}, {"codigo": "70A015", "nombre": "EG 0.0 R 30B 20CL LN MOTOGP", "umb": "CJ"}, {"codigo": "70A016", "nombre": "EG 0.0 TOSTADA R 30B 20CL LN MOTOGP", "umb": "CJ"}, {"codigo": "70A040", "nombre": "EG 0.0 TOSTADA SLK FRIGO 1X10 33CL MOTO", "umb": "PCK"}, {"codigo": "70A041", "nombre": "EG 0.0 TOSTADA SLK 1X10 33CL M MOTOGP", "umb": "PCK"}, {"codigo": "70A051", "nombre": "EG 0.0 NEGRA 4x6 LN NR 25CL ED. MOTOGP", "umb": "CJ"}, {"codigo": "70A054", "nombre": "EG 0.0 TOSTADA NR 25CL BOX 324B", "umb": "BOX"}, {"codigo": "70A055", "nombre": "EG 0.0 TOSTADA R 24B 33CL LN MOTOGP", "umb": "CJ"}, {"codigo": "70A056", "nombre": "EG 0.0 TOSTADA NR 4X6 25CL ED. MOTOGP", "umb": "CJ"}, {"codigo": "70A057", "nombre": "EG 0.0 TOSTADA SLK NMP 4X6 33CL MOTOGP", "umb": "CJ"}, {"codigo": "70A058", "nombre": "EG 0.0 TOSTADA NR 25CL BOX 50 PCK MOTOGP", "umb": "BOX"}, {"codigo": "70A061", "nombre": "EG 0.0 NR 4X6 25CL ED. MOTOGP", "umb": "CJ"}, {"codigo": "70A076", "nombre": "EG 0.0 6 MALTAS NR 4X6 25CL MOTOGP", "umb": "CJ"}, {"codigo": "70A082", "nombre": "EG 0.0 NR 6X4 33CL ALBANIA", "umb": "CJ"}, {"codigo": "70A089", "nombre": "EG 0.0 SLK NMP 4X6 33CL MOTOGP", "umb": "CJ"}, {"codigo": "70A092", "nombre": "EG 0.0 4X6 LATAS 33CL ED. VELCA", "umb": "CJ"}, {"codigo": "70A127", "nombre": "EG NR 1X6 BOT 66CL ED. SOLIDARIA 5CAPAS", "umb": "CJ"}, {"codigo": "70A128", "nombre": "EG NR 1X6 BOT 66CL ED. SOLIDARIA", "umb": "CJ"}, {"codigo": "70A144", "nombre": "EG NR 4x6 33CL CHINA AÑO NUEVO RIVERA SH", "umb": "CJ"}, {"codigo": "70A157", "nombre": "EG NR 1X24 33CL ED ANDALUCIA", "umb": "CJ"}, {"codigo": "70A189", "nombre": "EG NR 33CL BOX 72 PCK PROMO 5 MAS 1", "umb": "BOX"}, {"codigo": "70A204", "nombre": "EG NR 4X6 20CL E", "umb": "CJ"}, {"codigo": "70A205", "nombre": "EG NR 2X12 20CL E", "umb": "CJ"}, {"codigo": "70A210", "nombre": "EG R 24B 33CL DEPORTIVO", "umb": "CJ"}, {"codigo": "70A212", "nombre": "EG SLK 1X24 50CL E BAND ALBANIA", "umb": "BDJ"}, {"codigo": "70A214", "nombre": "EG NR 1X20 20CL CHIN SH ME", "umb": "CJ"}, {"codigo": "70A215", "nombre": "EG R 30B 20CL LN (CARNAVAL)", "umb": "CJ"}, {"codigo": "70A291", "nombre": "EG SLK 1X24 33CL", "umb": "BDJ"}, {"codigo": "70A292", "nombre": "EG ESP SLK33 4X6 E CLUB ALBANIA", "umb": "CJ"}, {"codigo": "70B061", "nombre": "EG 0.0 NR 4X6 25CL MCLAREN 2024", "umb": "CJ"}, {"codigo": "70B157", "nombre": "EG NR 1X24 33CL CHINA AÑO NUEVO", "umb": "CJ"}, {"codigo": "70B210", "nombre": "EG R 24B 33CL LN (FALLAS)", "umb": "CJ"}, {"codigo": "70B213", "nombre": "EG NR 4X6 20CL BOX 63 PCK", "umb": "BOX"}, {"codigo": "70B215", "nombre": "EG R 30B 20CL LN (FALLAS)", "umb": "CJ"}, {"codigo": "70B266", "nombre": "EG NR 2X12 25CL BERLIN", "umb": "CJ"}, {"codigo": "70B273", "nombre": "EG ESP BNR25 1X12 MEDIO PALET BERLIN", "umb": "PCK"}, {"codigo": "70C040", "nombre": "EG 0.0 TOSTADA SLK 1X10 33CL E CHAMPIONS", "umb": "PCK"}, {"codigo": "70C041", "nombre": "EG 0.0 TOSTADA SLK 1X10 33CL M CHAMPIONS", "umb": "PCK"}, {"codigo": "70C056", "nombre": "EG 0.0 TOSTADA NR 4X6 25CL LN CHAMPIONS", "umb": "CJ"}, {"codigo": "70C061", "nombre": "EG 0.0 NR 4X6 25CL LN CHAMPIONS", "umb": "CJ"}, {"codigo": "70C144", "nombre": "EG NR 4x6 33CL", "umb": "CJ"}, {"codigo": "70C157", "nombre": "EG NR  1X24 33CL CHINA", "umb": "CJ"}, {"codigo": "70C204", "nombre": "EG NR 4X6 20CL CHINA", "umb": "CJ"}, {"codigo": "70C205", "nombre": "EG NR 2X12 20CL CHINA", "umb": "CJ"}, {"codigo": "70C210", "nombre": "EG R 24B 33CL LN (CARNAVAL)", "umb": "CJ"}, {"codigo": "70C214", "nombre": "EG NR 1X20 20CL CHINA", "umb": "CJ"}, {"codigo": "70C215", "nombre": "EG R 30B 20CL LUGO", "umb": "CJ"}, {"codigo": "70C216", "nombre": "EG NR 4X6 20CL CHINA", "umb": "CJ"}, {"codigo": "70C241", "nombre": "EG NR 24B 4X6 PACK 33 CL", "umb": "CJ"}, {"codigo": "70C261", "nombre": "EG NR 4X6 25CL CHINA JACK SU", "umb": "CJ"}, {"codigo": "70C277", "nombre": "EG NR 1X24 25CL CHINA", "umb": "CJ"}, {"codigo": "70D144", "nombre": "EG NR 4x6 33CL", "umb": "CJ"}, {"codigo": "70D157", "nombre": "EG NR 1X24 33CL GEORGIA", "umb": "CJ"}, {"codigo": "70D204", "nombre": "EG NR 4X6 20CL COREA DEL SUR", "umb": "CJ"}, {"codigo": "70D210", "nombre": "EG R 24B 33CL LN (FERIA)", "umb": "CJ"}, {"codigo": "70D214", "nombre": "EG NR 1X20 20CL AÑO NUEVO", "umb": "CJ"}, {"codigo": "70D241", "nombre": "EG NR 24B 4X6 PACK 33 CL.", "umb": "CJ"}, {"codigo": "70E043", "nombre": "EG 0.0 TOSTADA SLK33 4X6 PACK E FE", "umb": "CJ"}, {"codigo": "70E144", "nombre": "EG NR 4x6 33CL", "umb": "CJ"}, {"codigo": "70E157", "nombre": "EG NR 1X24 33CL EXP", "umb": "CJ"}, {"codigo": "70E201", "nombre": "EG BARRIL 50L E", "umb": "BRL"}, {"codigo": "70E202", "nombre": "EG BARRIL 30L E", "umb": "BRL"}, {"codigo": "70E210", "nombre": "EG R 24B 33CL CELTA", "umb": "CJ"}, {"codigo": "70E212", "nombre": "EG SLK 1X24 50CL E BAND EUR ESTE", "umb": "BDJ"}, {"codigo": "70E241", "nombre": "EG NR 24B 4X6 PACK 33 CL", "umb": "CJ"}, {"codigo": "70E303", "nombre": "1906 BARRIL 30L E", "umb": "BRL"}, {"codigo": "70E615", "nombre": "EG GPILS BARRIL 50L E", "umb": "BRL"}, {"codigo": "70E651", "nombre": "EG GPILS BARRIL 30L E", "umb": "BRL"}, {"codigo": "70F144", "nombre": "EG NR 4x6 33CL", "umb": "CJ"}, {"codigo": "70F157", "nombre": "EG NR 1X24 33CL ED NAVARRA", "umb": "CJ"}, {"codigo": "70F205", "nombre": "EG NR 2X12 20CL F", "umb": "CJ"}, {"codigo": "70F210", "nombre": "EG R 24B 33CL LN MADRID", "umb": "CJ"}, {"codigo": "70F241", "nombre": "EG NR 24B 4X6 PACK 33 CL FUMIGADO", "umb": "CJ"}, {"codigo": "70G117", "nombre": "EG SLK 1X24 33CL BAND 70 RECICL GUINEA", "umb": "BDJ"}, {"codigo": "70G144", "nombre": "EG NR 4x6 33CL", "umb": "CJ"}, {"codigo": "70G157", "nombre": "EG NR 1X24 33CL", "umb": "CJ"}, {"codigo": "70G210", "nombre": "EG R 24B 33CL LN ALEMANIA", "umb": "CJ"}, {"codigo": "70G241", "nombre": "EG NR 24B 4X6 PACK 33 CL AÑO NUEVO C", "umb": "CJ"}, {"codigo": "70H144", "nombre": "EG NR 4x6 33CL", "umb": "CJ"}, {"codigo": "70H157", "nombre": "EG NR 1X24 33CL F", "umb": "CJ"}, {"codigo": "70H203", "nombre": "EG KEG 3L", "umb": "BRL"}, {"codigo": "70H210", "nombre": "EG R 24B 33CL LN BARCELON", "umb": "CJ"}, {"codigo": "70H215", "nombre": "EG R 30B 20CL LN EDICION CATALUÑA", "umb": "CJ"}, {"codigo": "70I103", "nombre": "EG BARRIL NR 30L IRAK", "umb": "BRL"}, {"codigo": "70I210", "nombre": "EG R 24B 33CL I TERCIO ENCICLOBIRRA", "umb": "CJ"}, {"codigo": "70I212", "nombre": "EG SLK 1X24 50CL E BAND IRAK", "umb": "BDJ"}, {"codigo": "70I215", "nombre": "EG R 30B 20CL I QUINTO ENCICLOBIRRA", "umb": "CJ"}, {"codigo": "70I261", "nombre": "EG NR 4X6 25CL E ENCICLOBIRRA", "umb": "CJ"}, {"codigo": "70I264", "nombre": "EG NR 1X6 25CL M ENCICLOBIRRA", "umb": "PCK"}, {"codigo": "70J144", "nombre": "EG NR 4X6 33CL", "umb": "CJ"}, {"codigo": "70J210", "nombre": "EG R 24B 33CL SAN JUAN", "umb": "CJ"}, {"codigo": "70K144", "nombre": "EG NR 4x6 33CL", "umb": "CJ"}, {"codigo": "70K210", "nombre": "EG R 24B 33CL LN ED BCORP", "umb": "CJ"}, {"codigo": "70L144", "nombre": "EG NR 4x6 33CL BERLIN EUR ESTE", "umb": "CJ"}, {"codigo": "70L145", "nombre": "EG ESP BNR33 1X24 E MEXICO BERLIN", "umb": "CJ"}, {"codigo": "70L157", "nombre": "EG WRAP AROUND 1x24B 33CL NR LCDP ITALIA", "umb": "CJ"}, {"codigo": "70L158", "nombre": "EG NR 1X24 33CL LCDP EUR ESTE", "umb": "CJ"}, {"codigo": "70L215", "nombre": "EG R 30B 20CL LN BERLIN", "umb": "CJ"}, {"codigo": "70L241", "nombre": "EG NR 24B 4X6 PACK 33 CL FRANCIA BPA", "umb": "CJ"}, {"codigo": "70L257", "nombre": "EG WRAP 1x24B 33CL NR LCDP ITALIA", "umb": "CJ"}, {"codigo": "70L261", "nombre": "EG NR 4X6 25CL BERLIN NACIONAL", "umb": "CJ"}, {"codigo": "70L685", "nombre": "EG WORLD LAGER BNR33CL 6X4 LCDP UR PA", "umb": "CJ"}, {"codigo": "70M057", "nombre": "EG 0.0 TOSTADA NMP BOX 54 PCK MOTOGP", "umb": "BOX"}, {"codigo": "70M089", "nombre": "EG 0.0 NMP 33CL BOX 54 PCK MOTOGP", "umb": "BOX"}, {"codigo": "70M117", "nombre": "EG SLK 1X24 33CL M", "umb": "BDJ"}, {"codigo": "70M144", "nombre": "EG NR 4X6 33CL FRANCIA BPA", "umb": "CJ"}, {"codigo": "70M173", "nombre": "EG NR 1X12 25CL M", "umb": "PCK"}, {"codigo": "70M204", "nombre": "EG NR 4X6 20CL MEXICO", "umb": "CJ"}, {"codigo": "70M208", "nombre": "EG NR 1X20 20CL ICEBOX M", "umb": "PCK"}, {"codigo": "70M210", "nombre": "EG R 24B 33CL ED. ASTURIAS", "umb": "CJ"}, {"codigo": "70M214", "nombre": "EG NR 1X20 20CL MEXICO", "umb": "CJ"}, {"codigo": "70M215", "nombre": "EG R 30B 20CL I EDICION MADRID", "umb": "CJ"}, {"codigo": "70M262", "nombre": "EG NR 4X6 25CL E CLUB MARRUECOS", "umb": "CJ"}, {"codigo": "70M288", "nombre": "EG SLK 1X16 33CL M", "umb": "PCK"}, {"codigo": "70M328", "nombre": "1906 SLK NMP 1X6 33CL M", "umb": "CJ"}, {"codigo": "70M384", "nombre": "1906 NR 1X12 33CL CLUB M", "umb": "PCK"}, {"codigo": "70M386", "nombre": "1906 NR 2RE 2RV 2BC 2GI 33CL ECOMMERCE", "umb": "PCK"}, {"codigo": "70M392", "nombre": "1906 SLK 1X24 33CL M", "umb": "BDJ"}, {"codigo": "70M397", "nombre": "1906  SLK 1X10 33CL M", "umb": "PCK"}, {"codigo": "70M856", "nombre": "1906 NR 6X4 33CL M", "umb": "CJ"}, {"codigo": "70M937", "nombre": "1906 RED VINTAGE 33CL 6 MAS COPA", "umb": "PCK"}, {"codigo": "70N043", "nombre": "EG 0.0 TOSTADA SLK33 4X6 PACK E AN", "umb": "CJ"}, {"codigo": "70N144", "nombre": "EG NR 4x6 33CL BERLIN INT", "umb": "CJ"}, {"codigo": "70N157", "nombre": "EG NR  1X24 33CL BERLIN", "umb": "CJ"}, {"codigo": "70O144", "nombre": "NO UTILIZAR CODIGO", "umb": "CJ"}, {"codigo": "70P104", "nombre": "EG BARRIL 20L EXP", "umb": "BRL"}, {"codigo": "70P117", "nombre": "EG SLK 1X24 33CL PORTUGAL", "umb": "BDJ"}, {"codigo": "70P144", "nombre": "EG NR 4x6 33CL PORTUGAL", "umb": "CJ"}, {"codigo": "70P210", "nombre": "EG ESP BR33 1X24 I TERCIO QR", "umb": "CJ"}, {"codigo": "70P214", "nombre": "EG NR 1x20 20CL PALET FUMIGADO", "umb": "CJ"}, {"codigo": "70P215", "nombre": "EG R 30B 20CL LN PAIS VASCO", "umb": "CJ"}, {"codigo": "70P403", "nombre": "EG GPILS BARRIL 30L EXP UK", "umb": "BRL"}, {"codigo": "70P856", "nombre": "1906 NR PACK 1x4 33CL M MEDIO PAL", "umb": "PCK"}, {"codigo": "70Q144", "nombre": "EG NR 4x6 33CL CHINA", "umb": "CJ"}, {"codigo": "70Q210", "nombre": "EG R 24B 33CL (PILARES) .", "umb": "CJ"}, {"codigo": "70R043", "nombre": "EG 0.0 TOSTADA SLK33 4X6 PACK E AR", "umb": "CJ"}, {"codigo": "70R195", "nombre": "EG SLK 1X10 33CL M CDR", "umb": "PCK"}, {"codigo": "70R210", "nombre": "EG R 24B 33CL BALEARES", "umb": "CJ"}, {"codigo": "70R261", "nombre": "EG NR 4X6 25CL LN CDR", "umb": "CJ"}, {"codigo": "70R264", "nombre": "EG NR 1X6 25CL LN M CDR", "umb": "PCK"}, {"codigo": "70R293", "nombre": "EG SLK 1X10 33CL CDR", "umb": "PCK"}, {"codigo": "70R295", "nombre": "EG SLK 1X10 33CL M CDR", "umb": "PCK"}, {"codigo": "70S157", "nombre": "EG NR 1X24 33CL EXP", "umb": "CJ"}, {"codigo": "70S210", "nombre": "EG R 24B 33CL I TERCIO VERBENA", "umb": "CJ"}, {"codigo": "70T144", "nombre": "EG NR 4x6 33CL E", "umb": "CJ"}, {"codigo": "70U087", "nombre": "EG 0.0 NR 4X6 33CL USA MCLAREN", "umb": "CJ"}, {"codigo": "70U144", "nombre": "EG NR 4x6 33CL CUBA", "umb": "CJ"}, {"codigo": "70U215", "nombre": "EG R 30B 20CL ALEMANIA", "umb": "CJ"}, {"codigo": "70V051", "nombre": "EG 0.0 NEGRA 6X25CL BOX 54PCKS MOTOGP", "umb": "BOX"}, {"codigo": "70V057", "nombre": "EG 0.0 TOSTADA NMP 33CL BOX 72 PCK", "umb": "BOX"}, {"codigo": "70V061", "nombre": "EG 0.0 NR 25CL BOX 324B MOTOGP", "umb": "BOX"}, {"codigo": "70V089", "nombre": "EG 0.0 NMP 33CL BOX 72 PCK", "umb": "BOX"}, {"codigo": "70V144", "nombre": "REUTILIZAR PARA MATERIAL 700144", "umb": "CJ"}, {"codigo": "70V210", "nombre": "EG R 24B 33CL LN (FIESTAS PAIS VASCO)", "umb": "CJ"}, {"codigo": "70W210", "nombre": "EG R 24B 33CL LN (ED. RACING FERROL)", "umb": "CJ"}, {"codigo": "70Y210", "nombre": "EG R 24B 33CL LN (ED. VALLADOLID)", "umb": "CJ"}, {"codigo": "70Z144", "nombre": "EG NR 4x6 33CL PAL EG", "umb": "CJ"}, {"codigo": "70Z157", "nombre": "EG NR 1X24 33CL", "umb": "CJ"}, {"codigo": "70Z198", "nombre": "EG SLK NMP 4X6 33CL PAL EG", "umb": "CJ"}, {"codigo": "70Z210", "nombre": "EG R 24B 33CL BERLIN", "umb": "CJ"}, {"codigo": "70Z261", "nombre": "EG NR 24B 4X6PACK 25CL LN PAL EG", "umb": "CJ"}, {"codigo": "", "nombre": "", "umb": ""}];
+  const byCode = {};
+  MATERIALES.forEach(m => { if(m.codigo) byCode[m.codigo] = m; });
+
+  const $ = id => document.getElementById(id);
+  const fechaInput = $('fecha');
+  fechaInput.value = new Date().toISOString().slice(0,10);
+
+  let current = [];
+  let selectedMat = null;
+  let activeIdx = -1;
+
+  function showToast(msg, isError=false){
+    const t = $('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (isError ? ' error' : '');
+    setTimeout(() => t.className = 'toast', 2000);
+  }
+
+  // AUTOCOMPLETE
+  function renderSuggestions(query){
+    const q = query.trim().toUpperCase();
+    const box = $('suggest');
+    if(!q){ box.style.display='none'; return; }
+    const matches = MATERIALES.filter(m => m.codigo &&
+      (m.codigo.toUpperCase().includes(q) || m.nombre.toUpperCase().includes(q))
+    ).slice(0, 25);
+    if(!matches.length){ box.style.display='none'; return; }
+    box.innerHTML = matches.map((m,i) =>
+      `<div data-idx="${i}" data-codigo="${m.codigo}">
+        <span class="s-code">${m.codigo}</span>${m.nombre}
+        <span class="s-umb">${m.umb}</span>
+      </div>`
+    ).join('');
+    box.style.display = 'block';
+    activeIdx = -1;
+    Array.from(box.children).forEach(div => {
+      div.addEventListener('click', () => selectMaterial(div.dataset.codigo));
+      div.addEventListener('touchend', (e) => { e.preventDefault(); selectMaterial(div.dataset.codigo); });
+    });
+  }
+
+  function selectMaterial(codigo){
+    const m = byCode[codigo];
+    if(!m) return;
+    selectedMat = m;
+    $('in-codigo').value = m.codigo;
+    $('in-nombre').value = m.nombre;
+    $('in-codigo').classList.remove('bad');
+    $('suggest').style.display = 'none';
+    $('in-pallets').focus();
+  }
+
+  $('in-codigo').addEventListener('input', () => {
+    const val = $('in-codigo').value;
+    if(!(byCode[val.trim().toUpperCase()] || byCode[val.trim()])){
+      selectedMat = null;
+      $('in-nombre').value = '';
+    }
+    renderSuggestions(val);
+  });
+
+  $('in-codigo').addEventListener('keydown', (e) => {
+    const items = Array.from($('suggest').children);
+    if($('suggest').style.display === 'block' && items.length){
+      if(e.key==='ArrowDown'){ e.preventDefault(); activeIdx=Math.min(activeIdx+1,items.length-1); updateActive(items); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); activeIdx=Math.max(activeIdx-1,0); updateActive(items); }
+      else if(e.key==='Enter'){ e.preventDefault(); const pick=items[activeIdx]||items[0]; selectMaterial(pick.dataset.codigo); }
+      else if(e.key==='Escape'){ $('suggest').style.display='none'; }
+    } else if(e.key==='Enter'){ e.preventDefault(); tryExactMatch(); }
+  });
+
+  function updateActive(items){
+    items.forEach(i => i.classList.remove('active'));
+    if(items[activeIdx]){ items[activeIdx].classList.add('active'); items[activeIdx].scrollIntoView({block:'nearest'}); }
+  }
+
+  function tryExactMatch(){
+    const raw = $('in-codigo').value.trim();
+    if(byCode[raw]){ selectMaterial(raw); return true; }
+    return false;
+  }
+
+  document.addEventListener('click', (e) => {
+    if(!e.target.closest('#in-codigo') && !e.target.closest('#suggest'))
+      $('suggest').style.display = 'none';
+  });
+
+  // AGREGAR
+  $('btn-add').addEventListener('click', addItem);
+  function addItem(){
+    if(!selectedMat) tryExactMatch();
+    if(!selectedMat){
+      $('in-codigo').classList.add('bad');
+      showToast('Código no encontrado', true);
+      return;
+    }
+    const pallets = parseInt($('in-pallets').value) || 0;
+    const cajas   = parseInt($('in-cajas').value)   || 0;
+    if(pallets===0 && cajas===0){ showToast('Ingresa pallets o cajas/barriles', true); return; }
+    const idx = current.findIndex(r => r.codigo === selectedMat.codigo);
+    if(idx >= 0){
+      current[idx].pallets += pallets;
+      current[idx].cajas   += cajas;
+      showToast(`✅ ${selectedMat.codigo} actualizado`);
+    } else {
+      current.push({ codigo:selectedMat.codigo, nombre:selectedMat.nombre, umb:selectedMat.umb, pallets, cajas, reconteo:false });
+      showToast(`✅ ${selectedMat.codigo} agregado`);
+    }
+    $('in-codigo').value=''; $('in-nombre').value=''; $('in-pallets').value=''; $('in-cajas').value='';
+    selectedMat = null;
+    $('in-codigo').classList.remove('bad');
+    $('in-codigo').focus();
+    render();
+  }
+
+  function render(){
+    const empty = $('empty-state');
+    const listEl = $('list-items');
+    if(current.length === 0){
+      empty.style.display = '';
+      listEl.innerHTML = '';
+    } else {
+      empty.style.display = 'none';
+      listEl.innerHTML = current.map((r,i) => `
+        <div class="item ${r.reconteo?'is-recount':''}">
+          <div>
+            <div class="item-code">${r.codigo}</div>
+            <div class="item-umb">${r.umb}</div>
+          </div>
+          <div>
+            <div class="item-name">${r.nombre}</div>
+            <div class="item-nums"><b>${r.pallets}</b> pal · <b>${r.cajas}</b> caj</div>
+          </div>
+          <div class="item-actions">
+            <input type="checkbox" class="recount-check" data-i="${i}" ${r.reconteo?'checked':''}>
+            <button class="btn btn-red" data-i="${i}">✕</button>
+          </div>
+        </div>
+      `).join('');
+      listEl.querySelectorAll('.recount-check').forEach(chk => {
+        chk.addEventListener('change', () => { current[+chk.dataset.i].reconteo=chk.checked; render(); });
+      });
+      listEl.querySelectorAll('.btn-red').forEach(b => {
+        b.addEventListener('click', () => { current.splice(+b.dataset.i,1); render(); });
+      });
+    }
+    const tp = current.reduce((s,r)=>s+r.pallets,0);
+    const tc = current.reduce((s,r)=>s+r.cajas,0);
+    const tr = current.filter(r=>r.reconteo).length;
+    $('badge').textContent = `${current.length} item${current.length!==1?'s':''}`;
+    $('footer-totals').innerHTML = `<b>${current.length}</b> productos · <b>${tp}</b> pallets · <b>${tc}</b> cajas` +
+      (tr ? ` · <b>${tr}</b> reconteo` : '');
+  }
+
+  $('btn-clear').addEventListener('click', () => {
+    if(current.length && !confirm('¿Vaciar el conteo?')) return;
+    current = []; render();
+  });
+
+  // EXPORTAR — UN SOLO EXCEL CON 3 HOJAS
+  $('btn-export').addEventListener('click', () => {
+    if(!current.length){ showToast('No hay productos', true); return; }
+    if(!$('usuario').value){ showToast('Selecciona un usuario', true); $('usuario').focus(); return; }
+    const fecha   = fechaInput.value || new Date().toISOString().slice(0,10);
+    const usuario = $('usuario').value;
+    const sorted  = [...current].sort((a,b) => a.codigo.localeCompare(b.codigo));
+
+    // Hoja 1: Conteo completo
+    const ws1 = XLSX.utils.json_to_sheet(sorted.map(r => ({
+      'Fecha':fecha,'Usuario':usuario,'Código':r.codigo,'Producto':r.nombre,
+      'UMB':r.umb,'Pallets completos':r.pallets,'Cajas o barriles':r.cajas,
+      'Reconteo':r.reconteo?'Sí':'No'
+    })));
+    ws1['!cols'] = [{wch:12},{wch:20},{wch:10},{wch:38},{wch:6},{wch:16},{wch:16},{wch:10}];
+
+    // Hoja 2: Solo reconteos
+    const reconteos = sorted.filter(r => r.reconteo);
+    const ws2 = XLSX.utils.json_to_sheet(reconteos.length ? reconteos.map(r => ({
+      'Código':r.codigo,'Producto':r.nombre,'UMB':r.umb,
+      'Pallets':r.pallets,'Cajas o barriles':r.cajas
+    })) : [{'Aviso':'No hay productos marcados para reconteo'}]);
+    ws2['!cols'] = [{wch:10},{wch:38},{wch:6},{wch:12},{wch:16}];
+
+    // Hoja 3: Resumen totales
+    const tp = current.reduce((s,r)=>s+r.pallets,0);
+    const tc = current.reduce((s,r)=>s+r.cajas,0);
+    const ws3 = XLSX.utils.json_to_sheet([
+      {'Resumen':'Fecha',         'Valor':fecha},
+      {'Resumen':'Usuario',       'Valor':usuario},
+      {'Resumen':'Total productos','Valor':current.length},
+      {'Resumen':'Total pallets', 'Valor':tp},
+      {'Resumen':'Total cajas',   'Valor':tc},
+      {'Resumen':'Para reconteo', 'Valor':reconteos.length},
+    ]);
+    ws3['!cols'] = [{wch:18},{wch:30}];
+
+    // Un solo workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws1, 'Conteo Inventario');
+    XLSX.utils.book_append_sheet(wb, ws2, 'Reconteos');
+    XLSX.utils.book_append_sheet(wb, ws3, 'Resumen');
+
+    const slug = usuario.replace(/\s+/g,'_');
+    XLSX.writeFile(wb, `Inventario_${fecha.replace(/-/g,'')}_${slug}.xlsx`);
+    showToast('✅ Excel exportado (3 hojas)');
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
